@@ -5,9 +5,10 @@
 local default_version = "default"
 local versions = {}
 local version_set = {}             -- Hash table for O(1) version lookups
-local selector_position = "header" -- Where to place the selector (header/top, after-first-heading, before-content)
+local selector_position = "header" -- Where to place the selector (header/top, after-first-heading, before-content, after-section)
 local show_selector = true         -- Whether to show the version selector
 local selector_label = "Version:"  -- Label text for the selector
+local after_section_heading = nil   -- Heading text to match for after-section positioning
 
 -- Parse configuration from document metadata
 function get_config(meta)
@@ -56,6 +57,9 @@ function get_config(meta)
         end
         if selector_config["label"] ~= nil then
           selector_label = pandoc.utils.stringify(selector_config["label"])
+        end
+        if selector_config["after-section-heading"] ~= nil then
+          after_section_heading = pandoc.utils.stringify(selector_config["after-section-heading"])
         end
       end
     end
@@ -181,10 +185,41 @@ function process_document(doc)
           end
         end
       elseif selector_position == "before-content" then
+        -- Place the selector just before the quarto-content div, which sits
+        -- after the title block and any front-matter elements.
         for idx, block in ipairs(doc.blocks) do
           if block.t == "Div" and block.classes:includes("quarto-content") then
             insert_position = idx
             break
+          end
+        end
+      elseif selector_position == "after-section" and after_section_heading ~= nil then
+        -- Place the selector at the end of a specific section, identified by
+        -- heading text (case-insensitive). Useful for long guides where the
+        -- content switch maps to a user decision made mid-page rather than at
+        -- the top. Falls back to default (top) if the heading isn't found.
+        local target_idx = nil
+        local target_level = nil
+        for idx, block in ipairs(doc.blocks) do
+          if block.t == "Header" and pandoc.utils.stringify(block.content):lower() == after_section_heading:lower() then
+            target_idx = idx
+            target_level = block.level
+            break
+          end
+        end
+        if target_idx ~= nil then
+          -- Walk forward until we hit a heading at the same level or higher,
+          -- which marks the start of the next section.
+          local found_end = false
+          for idx = target_idx + 1, #doc.blocks do
+            if doc.blocks[idx].t == "Header" and doc.blocks[idx].level <= target_level then
+              insert_position = idx
+              found_end = true
+              break
+            end
+          end
+          if not found_end then
+            insert_position = #doc.blocks + 1
           end
         end
       end
