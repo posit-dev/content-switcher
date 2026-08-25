@@ -24,7 +24,7 @@ quarto add posit-dev/content-switcher
 Or install a specific version:
 
 ```bash
-quarto add posit-dev/content-switcher@v0.1.0
+quarto add posit-dev/content-switcher@v0.1.1
 ```
 
 This will install the extension under the `_extensions` subdirectory of your project. If you're using version control, you'll want to check in this directory.
